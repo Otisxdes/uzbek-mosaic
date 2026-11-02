@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#77adea">
+<meta name="description" content="Uzbek Mosaic, Islamic Tiles — an interactive study of ornament built from individual ceramic tiles.">
+<title>Uzbek Mosaic — Islamic Tiles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css?v=poster-8">
+</head>
+<body>
+<!-- The poster is laid out at exactly 1080 × 1346 and scaled as a whole to fit the window. -->
+<main class="poster" id="poster">
+  <canvas id="scene" aria-label="Interactive Uzbek mosaic made of individual ceramic tiles. Move the pointer to displace tiles, click to step through its states."></canvas>
+
+  <canvas id="grain" aria-hidden="true"></canvas>
+
+  <h1 class="title">Uzbek Mosaic<br>Islamic Tiles</h1>
+
+  <p class="meta top-right"><span>[made by otisxdes]</span><span>november 1, 2026</span></p>
+
+  <p class="side left">Uzbek mosaic and tile traditions combine centuries of Silk Road craftsmanship with</p>
+  <p class="side right">a distinct palette of deep blues, turquoise, and gold that symbolize the sky, water, and spiritual protection</p>
+
+  <nav class="carousel" aria-label="Ornament">
+    <button id="prev" aria-label="Previous ornament"><svg viewBox="0 0 8 14" aria-hidden="true"><path d="M7 1 1 7l6 6"/></svg></button>
+    <span id="name" aria-live="polite">Medallion</span>
+    <button id="next" aria-label="Next ornament"><svg viewBox="0 0 8 14" aria-hidden="true"><path d="m1 1 6 6-6 6"/></svg></button>
+  </nav>
+
+  <p class="meta bottom-left"><span>[concept]</span><span>Generative AI</span></p>
+  <p class="meta bottom-right"><span>[made by otisxdes]</span><span>november 1, 2026</span></p>
+</main>
+
+<div id="error" hidden>WebGL is unavailable in this browser. Please open this page in a browser with hardware acceleration enabled.</div>
+<script type="module" src="app.js?v=poster-11"></script>
+</body>
+</html>

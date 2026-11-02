@@ -1,0 +1,118 @@
+/* A fixed 1080 × 1346 poster, scaled as one piece to fit the window (--s is set by app.js).
+   Every measurement below is in poster pixels, taken from the reference posters.
+   --sky is the gradient's top colour; it changes per ornament and is animatable via @property. */
+@property --sky { syntax: '<color>'; inherits: true; initial-value: #70a3de; }
+@property --haze { syntax: '<color>'; inherits: true; initial-value: #c1d2df; }
+
+:root {
+  --sky: #70a3de;
+  --haze: #c1d2df;
+  --ink: #111316;   /* title and carousel */
+  --meta: #2b2a28;   /* corner text, as on the posters */
+  --s: 1;
+  font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; background: #c5d6e5; }
+
+.poster {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1080px;
+  height: 1346px;
+  transform: translate(-50%, -50%) scale(var(--s));
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--sky) 0%, var(--haze) 47%, var(--haze) 100%);
+  transition: --sky 1.6s ease, --haze 1.6s ease;
+}
+/* film grain over the whole poster: a per-pixel noise canvas drawn by app.js (#grain) */
+#grain { position: absolute; inset: 0; width: 1080px; height: 1346px; z-index: 5; pointer-events: none; mix-blend-mode: overlay; }
+canvas { position: absolute; inset: 0; width: 1080px; height: 1346px; display: block; touch-action: none; }
+
+.title {
+  position: absolute;
+  left: 25px;
+  top: 63px;
+  margin: 0;
+  font-weight: 600;
+  font-size: 92px;
+  line-height: 74px;
+  letter-spacing: -.066em;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.meta {
+  position: absolute;
+  margin: 0;
+  font-size: 14px;
+  line-height: 19px;
+  letter-spacing: -.03em;
+  font-weight: 500;
+  color: var(--meta);
+  z-index: 2;
+}
+/* every corner line — [concept], Generative AI, [made by otisxdes], november 1, 2026 — shares one size, weight and colour */
+.meta span { display: block; color: inherit; font-weight: inherit; }
+.top-right { top: 40px; left: 932px; }
+.bottom-left { top: 1268px; left: 25px; }
+.bottom-right { top: 1268px; left: 932px; }
+
+.side {
+  position: absolute;
+  top: 652px;
+  width: 210px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 12px;
+  letter-spacing: -.035em;
+  font-weight: 400;
+  color: #363636;
+  pointer-events: none;
+  z-index: 2;
+}
+.side.left { left: 24px; }
+.side.right { left: 852px; }
+
+/* carousel: ‹ Name › centred under the ornament */
+.carousel {
+  position: absolute;
+  top: 1062px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 13px;
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -.02em;
+  z-index: 6;
+}
+.carousel button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  opacity: .9;
+  transition: opacity .2s, transform .2s;
+}
+.carousel button:hover { opacity: 1; }
+#prev:hover { transform: translateX(-2px); }
+#next:hover { transform: translateX(2px); }
+.carousel svg { width: 7px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.carousel button:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
+#name { min-width: 0; text-align: center; }
+
+#error { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: 360px; padding: 24px; background: #fff; z-index: 7; }
