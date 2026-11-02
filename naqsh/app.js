@@ -134,7 +134,7 @@ const smooth=(a,b,x)=>{const t=THREE.MathUtils.clamp((x-a)/(b-a),0,1);return t*t
 // is cut into four-tile pieces that drop in from above the poster, shuffle sideways and turn in
 // quarter-steps on the way down, then lock into place — bottom rows first, so the ornament stacks up.
 // If the tiles are mid-flow when an ornament is chosen, they first return home, then the game plays.
-const CLEAR=1.0,BLINK=.34,BUILD=2.6,FALL=3400,LOCK=.4;   // seconds; FALL in world units per second
+const CLEAR=1.3,BLINK=.44,BUILD=3.4,FALL=2600,LOCK=.5;   // seconds; FALL in world units per second
 let want=0,T=null; // T: {wait} until the tiles rest, then {on,t,pieces,end,clearDone}
 // typical distance between neighbouring tiles of each ornament (data px), to find a piece's neighbours
 const PITCH=sets.map(s=>{const c=40,G=new Map(),key=(x,y)=>x+','+y;
