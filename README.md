@@ -7,7 +7,8 @@ switch with the ‹ › arrows (or ← → keys).
 **Live:** https://otisxdes.github.io/uzbek-mosaic/
 
 ## Interaction
-- **‹ ›** or **← →** — switch ornament
+- **‹ ›** or **← →** — switch ornament; the change plays as a game of Tetris: the old ornament
+  clears line by line, and the new one drops in as four-tile pieces that stack up from the bottom
 - **Click the mosaic** or keys **1–4** — step through assembled → unraveling → in flow → returning
 - **Move the pointer** — displace nearby tiles
 

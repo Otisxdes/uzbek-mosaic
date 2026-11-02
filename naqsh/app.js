@@ -126,70 +126,140 @@ let time=0,last=performance.now();const speed=1;let pointer={x:99999,y:99999};
 const STATES=[{label:'assembled',t:0},{label:'unraveling',t:4.6},{label:'in flow',t:10},{label:'returning',t:14}];
 const RATE=1.6; // choreography seconds per real second
 let state=0,spin=0;
-function setState(s){state=(s+STATES.length)%STATES.length;if(reduced.matches)time=STATES[state].t;sync();}
+function setState(s){if(T)return;state=(s+STATES.length)%STATES.length;if(reduced.matches)time=STATES[state].t;sync();}
 const smooth=(a,b,x)=>{const t=THREE.MathUtils.clamp((x-a)/(b-a),0,1);return t*t*t*(t*(t*6-15)+10);};
 
-// ── ornament switching ──
-// The change happens while tiles are in flight: homes, colours and sizes ease from one ornament
-// to the next over MORPH seconds of animation time, so no tile ever jumps.
-const MORPH=1.6,FLOW_START=9.1;
-let morph=null; // {t}
-function select(k){
-  k=(k+ORNAMENTS.length)%ORNAMENTS.length;if(k===current&&!morph)return;
-  previous=morph?previous:current;current=k;
+// ── ornament switching: a game of Tetris ──
+// The old ornament clears line by line from the bottom (each row blinks, then vanishes). The new one
+// is cut into four-tile pieces that drop in from above the poster, shuffle sideways and turn in
+// quarter-steps on the way down, then lock into place — bottom rows first, so the ornament stacks up.
+// If the tiles are mid-flow when an ornament is chosen, they first return home, then the game plays.
+const CLEAR=1.0,BLINK=.34,BUILD=2.6,FALL=3400,LOCK=.4;   // seconds; FALL in world units per second
+let want=0,T=null; // T: {wait} until the tiles rest, then {on,t,pieces,end,clearDone}
+// typical distance between neighbouring tiles of each ornament (data px), to find a piece's neighbours
+const PITCH=sets.map(s=>{const c=40,G=new Map(),key=(x,y)=>x+','+y;
+  s.forEach(t=>{const k=key(Math.floor(t[0]/c),Math.floor(t[1]/c));(G.get(k)||G.set(k,[]).get(k)).push(t);});
+  const d=[];for(let n=0;n<s.length;n+=5){const t=s[n],gx=Math.floor(t[0]/c),gy=Math.floor(t[1]/c);let m=1e9;
+    for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(const u of G.get(key(gx+a,gy+b))||[]){const e=Math.hypot(u[0]-t[0],u[1]-t[1]);if(e>.5&&e<m)m=e;}
+    if(m<1e9)d.push(m);}
+  d.sort((a,b)=>a-b);return d[d.length>>1]||12.5;});
+particles.forEach(p=>{p.pc=-1;p.ca=-1;});
+function assign(k){
+  previous=current;current=k;
   particles.forEach((p,i)=>{const s=slot(k,i);p.fx=p.x;p.fy=p.y;p.hx=s.x;p.hy=s.y;p.from.copy(p.col);p.to.copy(s.col);p.fromScale=p.scale;p.toScale=s.vis;p.fromRot=p.rot;p.toRot=s.rot;});
-  morph={t:0};
-  if(reduced.matches)finishMorph();
-  document.body.style.setProperty('--sky',ORNAMENTS[k].sky);document.body.style.setProperty('--haze',ORNAMENTS[k].haze||'#c1d2df');
-  sync();
 }
-function finishMorph(){particles.forEach((p,i)=>{p.x=p.hx;p.y=p.hy;p.col.copy(p.to);p.scale=p.toScale;p.rot=p.toRot;mesh.setColorAt(i,p.col);});mesh.instanceColor.needsUpdate=true;morph=null;}
+function finishMorph(){particles.forEach((p,i)=>{p.x=p.hx;p.y=p.hy;p.col.copy(p.to);p.scale=p.toScale;p.rot=p.toRot;p.pc=-1;p.ca=-1;mesh.setColorAt(i,p.col);});mesh.instanceColor.needsUpdate=true;}
+function setSky(k){document.body.style.setProperty('--sky',ORNAMENTS[k].sky);document.body.style.setProperty('--haze',ORNAMENTS[k].haze||'#c1d2df');}
+// Group the new ornament's tiles into (mostly) four-tile pieces, growing each from the lowest free tile.
+function buildPieces(k){
+  const g=PITCH[k]*ORNAMENTS[k].scale,ids=[],G=new Map(),taken=new Uint8Array(MAX),pieces=[];
+  particles.forEach((p,i)=>{if(p.toScale>0)ids.push(i);});
+  ids.sort((a,b)=>particles[a].hy-particles[b].hy||particles[a].hx-particles[b].hx);
+  const cx=i=>Math.round(particles[i].hx/g),cy=i=>Math.round(particles[i].hy/g);
+  ids.forEach(i=>{const k2=cx(i)+','+cy(i);(G.get(k2)||G.set(k2,[]).get(k2)).push(i);});
+  for(const i0 of ids){if(taken[i0])continue;const m=[i0];taken[i0]=1;
+    while(m.length<4){let best=-1,bd=1e9;
+      for(const j of m){const pj=particles[j],x=cx(j),y=cy(j);
+        for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++)for(const n of G.get((x+a)+','+(y+b))||[]){if(taken[n])continue;
+          const pn=particles[n],d=Math.hypot(pn.hx-pj.hx,pn.hy-pj.hy);if(d>g*1.3)continue;
+          const sc=d+(pn.hy-particles[i0].hy)*.35+rand(n*3+k)*g*.8;if(sc<bd){bd=sc;best=n;}}}
+      if(best<0)break;m.push(best);taken[best]=1;}
+    pieces.push(m);}
+  return {pieces,g};
+}
+function beginTetris(){
+  const old=current;assign(want);setSky(want);
+  // line clear: rows of the old ornament go bottom-up
+  const go=PITCH[old]*ORNAMENTS[old].scale;let y0=1e9,y1=-1e9;
+  particles.forEach(p=>{if(p.fromScale>0){y0=Math.min(y0,p.fy);y1=Math.max(y1,p.fy);}});
+  particles.forEach(p=>{p.pc=-1;p.ca=p.fromScale>0?Math.round((p.fy-y0)/go)*go/((y1-y0)||1)*CLEAR:-1;});
+  // the new ornament's pieces: land bottom-first, fall at constant speed from above the poster
+  const {pieces,g}=buildPieces(want),top=camera.top+2*g;let lo=1e9,hi=-1e9;
+  const P=pieces.map((m,n)=>{let sx=0,sy=0,b=1e9,ce=0;for(const i of m){const p=particles[i];sx+=p.hx;sy+=p.hy;b=Math.min(b,p.hy);ce=Math.max(ce,p.ca>=0?p.ca+BLINK:0);p.pc=n;}
+    lo=Math.min(lo,b);hi=Math.max(hi,b);
+    return {cx:sx/m.length,cy:sy/m.length,b,ce,g,dist:top-b,lat:Math.round((rand(n*5+1)-.5)*6.99),rot:Math.floor(rand(n*7+2)*4)};});
+  let shift=0;
+  P.forEach((pc,n)=>{pc.la=BUILD*(pc.b-lo)/((hi-lo)||1)+rand(n*11+3)*.18;pc.da=pc.la-pc.dist/FALL;shift=Math.max(shift,pc.ce-pc.da);});
+  let end=0;P.forEach(pc=>{pc.la+=shift;pc.da+=shift;end=Math.max(end,pc.la);});
+  T={on:true,t:0,pieces:P,end:Math.max(end,CLEAR+BLINK)+LOCK+.1,clearDone:CLEAR+BLINK};
+}
+function select(k){
+  k=(k+ORNAMENTS.length)%ORNAMENTS.length;if(k===want)return;want=k;sync();
+  if(reduced.matches){jump(k);return;}
+  state=0;if(!T)T={wait:true};
+}
+function jump(k){want=k;T=null;if(k!==current)assign(k);finishMorph();setSky(k);sync();}
+// Pose of tile p at game time tt → Q
+const Q={x:0,y:0,z:0,rot:0,scale:0,flash:0,col:null},WHITE=new THREE.Color(1,1,1),tint=new THREE.Color();
+function tetrisPose(p,tt){
+  const pc=p.pc>=0?T.pieces[p.pc]:null;
+  if(!pc||tt<pc.da){   // still the old ornament: rest, then blink and vanish with its row
+    Q.x=p.fx;Q.y=p.fy;Q.z=0;Q.rot=p.fromRot;Q.col=p.from;Q.flash=0;Q.scale=p.fromScale;
+    if(p.ca>=0&&tt>=p.ca){const u=(tt-p.ca)/BLINK;Q.flash=u<.7&&Math.floor(u*8)%2?.12:.85;Q.scale*=1-smooth(.62,1,u);}
+    return;}
+  Q.col=p.to;
+  if(tt<pc.la){        // falling: steps sideways and turns in quarter-steps, snapped to the tile grid
+    const f=(tt-pc.da)/(pc.la-pc.da),cl=THREE.MathUtils.clamp,
+      lat=Math.sign(pc.lat)*Math.ceil(Math.abs(pc.lat)*(1-cl((f-.06)/.6,0,1))-1e-6),
+      a=Math.ceil(pc.rot*(1-cl((f-.12)/.6,0,1))-1e-6)*Math.PI/2,ca=Math.cos(a),sa=Math.sin(a),
+      lx=p.hx-pc.cx,ly=p.hy-pc.cy,dy=Math.ceil(pc.dist*(1-f)/pc.g)*pc.g;
+    Q.x=pc.cx+lat*pc.g+lx*ca-ly*sa;Q.y=pc.cy+dy+lx*sa+ly*ca;Q.z=40;Q.rot=p.toRot+a;Q.scale=p.toScale;Q.flash=0;
+    return;}
+  const u=Math.min(1,(tt-pc.la)/LOCK),e=(1-u)*(1-u);   // locked: a small pop and flash
+  Q.x=p.hx;Q.y=p.hy;Q.z=0;Q.rot=p.toRot;Q.scale=p.toScale*(1+.14*e);Q.flash=.5*e;
+}
 
 // Carousel: ‹ Name › — arrows (and ← → keys) step through the ornaments, wrapping round.
-$('#prev').onclick=()=>select(current-1);$('#next').onclick=()=>select(current+1);
-function sync(){ $('#name').textContent=ORNAMENTS[current].name; }
-addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key==='ArrowRight')select(current+1);else if(e.key==='ArrowLeft')select(current-1);else if(e.key>='1'&&e.key<=String(STATES.length))setState(+e.key-1);});
+$('#prev').onclick=()=>select(want-1);$('#next').onclick=()=>select(want+1);
+function sync(){ $('#name').textContent=ORNAMENTS[want].name; }
+addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key==='ArrowRight')select(want+1);else if(e.key==='ArrowLeft')select(want-1);else if(e.key>='1'&&e.key<=String(STATES.length))setState(+e.key-1);});
 // pointer → world, through the poster's scale
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width-.5)*worldWidth;pointer.y=(.5-(e.clientY-r.top)/r.height)*worldHeight+(camera.top+camera.bottom)/2;});canvas.addEventListener('pointerleave',()=>pointer.x=99999);canvas.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse')pointer.x=99999;});canvas.addEventListener('click',()=>setState(state+1));
 // ?o=<n> opens straight on ornament n, assembled (for reviewing one ornament)
-{const o=new URLSearchParams(location.search).get('o');if(o){select(+o);finishMorph();}}
-reduced.addEventListener('change',()=>{if(reduced.matches){time=STATES[state].t;if(morph)finishMorph();sync();}});sync();
+{const o=new URLSearchParams(location.search).get('o');if(o)jump((+o%ORNAMENTS.length+ORNAMENTS.length)%ORNAMENTS.length);}
+reduced.addEventListener('change',()=>{if(reduced.matches){time=STATES[state].t;if(T)jump(want);sync();}});sync();
 
 // Surface look eases towards the ornament on show (it switches while tiles are mid-air).
 const look={...ORNAMENTS[0].look},shadowCol=new THREE.Color(look.shadow),targetCol=new THREE.Color();
 let groutW=0;
 function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.033);last=now;const active=!document.hidden;
 if(active){
-  // while an ornament swap is pending, pass through the flow first
-  const target=morph?STATES[2].t:STATES[state].t;
+  // while an ornament swap is pending, bring every tile home first
+  const target=T?STATES[0].t:STATES[state].t;
   let d=target-time;if(d>10)d-=20;if(d<=-10)d+=20;          // shorter way round; a tie goes forward
   const step=dt*speed*RATE;
   if(Math.abs(d)>step)time=(time+Math.sign(d)*step+20)%20;else{time=target;if(!reduced.matches)spin+=dt*speed*.48;}
+  if(T&&T.wait&&time===target){if(want===current)T=null;else beginTetris();}
+  else if(T&&T.on){T.t+=dt*speed;
+    if(T.t>=T.end){finishMorph();T=null;if(want!==current)T={wait:true};}}
 }
-// advance the morph once every tile is airborne
-let q=-1;if(morph&&active&&time>=FLOW_START&&time<17.9){morph.t+=dt*speed/MORPH;q=smooth(0,1,morph.t);}
-const shown=morph&&morph.t<.5?previous:current, L=ORNAMENTS[shown].look, e=1-Math.exp(-dt*4);
+const tt=T&&T.on?T.t:-1;
+const shown=tt>=0&&tt<T.clearDone*.6?previous:current, L=ORNAMENTS[shown].look, e=1-Math.exp(-dt*4);
 look.roughness+=(L.roughness-look.roughness)*e;look.clearcoat+=(L.clearcoat-look.clearcoat)*e;look.env+=(L.env-look.env)*e;look.shadowOpacity+=(L.shadowOpacity-look.shadowOpacity)*e;
 tileMaterial.roughness=look.roughness;tileMaterial.clearcoat=look.clearcoat;tileMaterial.envMapIntensity=look.env;
 shadowCol.lerp(targetCol.set(L.shadow),e);shadowMaterial.color.copy(shadowCol);shadowMaterial.opacity=look.shadowOpacity;
-const assembled=time<10?1-smooth(1.9,3.6,time):smooth(15.5,18.5,time);
+const assembled=tt>=0?(tt<T.clearDone?1-smooth(0,T.clearDone,tt):smooth(T.end-.9,T.end,tt)):time<10?1-smooth(1.9,3.6,time):smooth(15.5,18.5,time);
 {const ps=ORNAMENTS[shown].panelShadow||0;if(ps&&panelShadow.userData.k!==shown){fitPanelShadow(shown);panelShadow.userData.k=shown;}
   panelShadowMaterial.opacity+=(ps*assembled-panelShadowMaterial.opacity)*e;panelShadow.visible=panelShadowMaterial.opacity>.003;}
 groutW+=((ORNAMENTS[shown].grout?1:0)-groutW)*e;groutMaterial.opacity=groutW*assembled;grout.visible=groutMaterial.opacity>.003;
 
 const resting=time<1.9;
 particles.forEach((p,i)=>{
-if(q>=0){p.x=p.fx+(p.hx-p.fx)*q;p.y=p.fy+(p.hy-p.fy)*q;p.col.lerpColors(p.from,p.to,q);mesh.setColorAt(i,p.col);p.scale=p.fromScale+(p.toScale-p.fromScale)*q;p.rot=p.fromRot+(p.toRot-p.fromRot)*q;}
-if(resting&&!morph&&(p.sx!==p.x||p.sy!==p.y)){p.sx=p.x;p.sy=p.y;p.delay=((836-p.y)/1672)*2.4+rand(i)*.65;}
-const release=smooth(2+p.delay,6+p.delay,time);const settle=smooth(11+p.delay*.6,16+p.delay*.6,time);const amount=release*(1-settle);const theta=p.sy/1672*6.283+(p.sx>0?Math.PI:0)+p.seed*.55+(time-3)*.48+spin;const radius=280+Math.abs(p.sx)*.7+p.band*85;const streamX=Math.cos(theta)*radius+Math.sin(theta*2)*100;const streamY=Math.sin(theta)*radius*.85+Math.cos(theta*.7)*170;const tx=p.x*(1-amount)+streamX*amount;const ty=p.y*(1-amount)+streamY*amount;
+let tx,ty,z0,rx=0,ry=0,rz,sc,amount=0,srot;
+if(tt>=0){tetrisPose(p,tt);tx=Q.x;ty=Q.y;z0=Q.z;rz=srot=Q.rot;sc=Q.scale;mesh.setColorAt(i,tint.copy(Q.col).lerp(WHITE,Q.flash));}
+else{
+if(resting&&!T&&(p.sx!==p.x||p.sy!==p.y)){p.sx=p.x;p.sy=p.y;p.delay=((836-p.y)/1672)*2.4+rand(i)*.65;}
+const release=smooth(2+p.delay,6+p.delay,time);const settle=smooth(11+p.delay*.6,16+p.delay*.6,time);amount=release*(1-settle);const theta=p.sy/1672*6.283+(p.sx>0?Math.PI:0)+p.seed*.55+(time-3)*.48+spin;const radius=280+Math.abs(p.sx)*.7+p.band*85;const streamX=Math.cos(theta)*radius+Math.sin(theta*2)*100;const streamY=Math.sin(theta)*radius*.85+Math.cos(theta*.7)*170;tx=p.x*(1-amount)+streamX*amount;ty=p.y*(1-amount)+streamY*amount;
+z0=amount*(35+65*Math.sin(theta));rx=amount*.45*Math.sin(theta);ry=amount*.5*Math.cos(theta);rz=amount*(theta+p.seed*3)+p.rot;sc=p.scale;srot=p.rot*(1-amount);}
 if(active){let fx=0,fy=0;if(!reduced.matches){const dx=tx-pointer.x,dy=ty-pointer.y,d=Math.hypot(dx,dy);if(d<180){const f=(1-d/180)**2*95;fx=dx/(d||1)*f;fy=dy/(d||1)*f;}}const st=dt*60;p.vx+=(fx-p.ox)*.07*st;p.vy+=(fy-p.oy)*.07*st;p.vx*=Math.exp(-8*dt);p.vy*=Math.exp(-8*dt);p.ox+=p.vx*st;p.oy+=p.vy*st;}
-const z=amount*(35+65*Math.sin(theta))+Math.hypot(p.ox,p.oy)*.3;object.position.set(tx+p.ox,ty+p.oy,z+p.zj);object.rotation.set(amount*.45*Math.sin(theta),amount*.5*Math.cos(theta),amount*(theta+p.seed*3)+p.rot);object.scale.setScalar(p.scale);object.updateMatrix();mesh.setMatrixAt(i,object.matrix);
+const z=z0+Math.hypot(p.ox,p.oy)*.3;object.position.set(tx+p.ox,ty+p.oy,z+p.zj);object.rotation.set(rx,ry,rz);object.scale.setScalar(sc);object.updateMatrix();mesh.setMatrixAt(i,object.matrix);
 // shadows sit far behind every tile and shrink in flight, so overlapping sprites never haze over the tiles
-object.position.set(tx+p.ox+3.2+z*.06,ty+p.oy-4.2-z*.08,-200);object.rotation.set(0,0,p.rot*(1-amount));object.scale.setScalar((.72+Math.abs(z)*.009)*(1-.45*amount)*p.scale);object.updateMatrix();shadows.setMatrixAt(i,object.matrix);});
-if(q>=0){mesh.instanceColor.needsUpdate=true;if(morph.t>=1)morph=null;}
+object.position.set(tx+p.ox+3.2+z*.06,ty+p.oy-4.2-z*.08,-200);object.rotation.set(0,0,srot);object.scale.setScalar((.72+Math.abs(z)*.009)*(1-.45*amount)*sc);object.updateMatrix();shadows.setMatrixAt(i,object.matrix);});
+if(tt>=0)mesh.instanceColor.needsUpdate=true;
 mesh.instanceMatrix.needsUpdate=true;shadows.instanceMatrix.needsUpdate=true;renderer.render(scene,camera);
 }requestAnimationFrame(frame);
-window.mosaic={get state(){return {time,state:STATES[state].label,count:sets[current].length,ornament:ORNAMENTS[current].name,morphing:!!morph,reduced:reduced.matches};},select,setState,
+window.mosaic={get state(){return {time,state:STATES[state].label,count:sets[current].length,ornament:ORNAMENTS[current].name,morphing:!!T,tetris:T&&T.on?{t:T.t,end:T.end,pieces:T.pieces.length}:null,reduced:reduced.matches};},select,setState,
+  seek(t){if(T&&T.on)T.t=t;},   // jump the ornament transition to t seconds (for reviewing it)
   // colour check: rendered RGB at a CSS-pixel position (tiles only; the page background is CSS)
   // full-resolution capture of the canvas (for comparing against references)
   snapshot(){for(let k=0;k<3;k++)frame(performance.now());return canvas.toDataURL('image/png');},
