@@ -33,7 +33,7 @@ const ORNAMENTS=[
   {file:'tiles-4.json?v=poster-1',name:'Lattice',scale:1.77,tile:1,sky:'#70c1de',grout:true,
    recolor:{'22,38,140':[6,30,124],'16,154,192':[8,150,189],'246,232,214':[244,231,215]},
    look:{roughness:.62,clearcoat:0,env:.35,jitter:.07,shadow:'#2a4e66',shadowOpacity:.22}},
-  {file:'tiles-3.json?v=poster-7',name:'Girih',scale:1.142,tile:.97,sky:'#cfbfae',
+  {file:'tiles-3.json?v=poster-8',name:'Girih',scale:1.142,tile:.97,sky:'#cfbfae',
    recolor:{},
    look:{roughness:.3,clearcoat:.55,env:.95,jitter:.035,shadow:'#4a2a14',shadowOpacity:.5}},
 ];
@@ -85,11 +85,12 @@ function fitPanelShadow(k){const s=sets[k],sc=ORNAMENTS[k].scale;let x0=1e9,x1=-
   panelShadow.position.set(((x0+x1)/2-CX)*sc+10,(CY-(y0+y1)/2)*sc-14,-300);}
 const object=new THREE.Object3D();const rand=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
 // Where tile i sits in ornament k. Tiles beyond an ornament's count hide (scale 0) under one of its tiles.
+// A tile may carry a 7th field, its size relative to the ornament's tile (the girih frame tiles are larger).
 function slot(k,i){
   const o=ORNAMENTS[k],s=sets[k],t=s[i<s.length?i:i%s.length];
   const c=o.recolor[t.slice(2).join(',')]||t.slice(2);
   const j=1+(rand(i*7+k)-.5)*2*o.look.jitter;                       // natural glaze variation per tile
-  return {rot:-(t[5]||0),x:(t[0]-CX)*o.scale,y:(CY-t[1])*o.scale,col:new THREE.Color().setRGB(Math.min(1,c[0]/255*j),Math.min(1,c[1]/255*j),Math.min(1,c[2]/255*j),THREE.SRGBColorSpace),vis:i<s.length?o.tile*o.scale:0};
+  return {rot:-(t[5]||0),x:(t[0]-CX)*o.scale,y:(CY-t[1])*o.scale,col:new THREE.Color().setRGB(Math.min(1,c[0]/255*j),Math.min(1,c[1]/255*j),Math.min(1,c[2]/255*j),THREE.SRGBColorSpace),vis:i<s.length?o.tile*o.scale*(t[6]||1):0};
 }
 let current=0,previous=0;
 const particles=Array.from({length:MAX},(_,i)=>{const s=slot(0,i);mesh.setColorAt(i,s.col);
