@@ -16,6 +16,7 @@ switch with the ‹ › arrows (or ← → keys).
 - `naqsh/` — the site: `index.html`, `style.css`, `app.js` (Three.js, instanced tiles) and the
   tile data `tiles*.json` (one file per ornament, `[x, y, r, g, b, angle]` per tile)
 - `naqsh/tools/` — Python scripts that extracted and refined the ornaments from their reference images
+  (the girih panel is traced tile by tile from `tools/ornament-3/reference-target.webp` by `trace_ornament3.py`)
 - `first.html` — the first prototype
 - `index.html` — redirects to `naqsh/`
 

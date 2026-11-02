@@ -33,7 +33,7 @@ const ORNAMENTS=[
   {file:'tiles-4.json?v=poster-1',name:'Lattice',scale:1.77,tile:1,sky:'#70c1de',grout:true,
    recolor:{'22,38,140':[6,30,124],'16,154,192':[8,150,189],'246,232,214':[244,231,215]},
    look:{roughness:.62,clearcoat:0,env:.35,jitter:.07,shadow:'#2a4e66',shadowOpacity:.22}},
-  {file:'tiles-3.json?v=poster-8',name:'Girih',scale:1.142,tile:.97,sky:'#cfbfae',
+  {file:'tiles-3.json?v=poster-9',name:'Girih',scale:1.142,tile:.97,sky:'#cfbfae',bed:'#ddbe9b',
    recolor:{},
    look:{roughness:.3,clearcoat:.55,env:.95,jitter:.035,shadow:'#4a2a14',shadowOpacity:.5}},
 ];
@@ -83,6 +83,14 @@ function fitPanelShadow(k){const s=sets[k],sc=ORNAMENTS[k].scale;let x0=1e9,x1=-
   for(const t of s){x0=Math.min(x0,t[0]);x1=Math.max(x1,t[0]);y0=Math.min(y0,t[1]);y1=Math.max(y1,t[1]);}
   const w=(x1-x0+14)*sc,h=(y1-y0+14)*sc;panelShadow.scale.set(w*256/160,h*256/160,1);
   panelShadow.position.set(((x0+x1)/2-CX)*sc+10,(CY-(y0+y1)/2)*sc-14,-300);}
+// Grout bed (girih): one plane under the panel in the reference's grout colour, so the joints between
+// tiles read as grout, not as the backdrop; it fades with the tiles like the lattice bed.
+const BED=ORNAMENTS.findIndex(o=>o.bed);
+const bedMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color(ORNAMENTS[BED].bed),transparent:true,opacity:0,depthWrite:false});
+const bed=new THREE.Mesh(new THREE.PlaneGeometry(1,1),bedMaterial);bed.visible=false;
+{const s=sets[BED],sc=ORNAMENTS[BED].scale;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;   // to the outer tile centres: its edge stays hidden
+  for(const t of s){x0=Math.min(x0,t[0]);x1=Math.max(x1,t[0]);y0=Math.min(y0,t[1]);y1=Math.max(y1,t[1]);}
+  bed.scale.set((x1-x0)*sc,(y1-y0)*sc,1);bed.position.set(((x0+x1)/2-CX)*sc,(CY-(y0+y1)/2)*sc,-3.5);scene.add(bed);}
 const object=new THREE.Object3D();const rand=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
 // Where tile i sits in ornament k. Tiles beyond an ornament's count hide (scale 0) under one of its tiles.
 // A tile may carry a 7th field, its size relative to the ornament's tile (the girih frame tiles are larger).
@@ -222,7 +230,7 @@ reduced.addEventListener('change',()=>{if(reduced.matches){time=STATES[state].t;
 
 // Surface look eases towards the ornament on show (it switches while tiles are mid-air).
 const look={...ORNAMENTS[0].look},shadowCol=new THREE.Color(look.shadow),targetCol=new THREE.Color();
-let groutW=0;
+let groutW=0,bedW=0;
 function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.033);last=now;const active=!document.hidden;
 if(active){
   // while an ornament swap is pending, bring every tile home first
@@ -243,6 +251,7 @@ const assembled=tt>=0?(tt<T.clearDone?1-smooth(0,T.clearDone,tt):smooth(T.end-.9
 {const ps=ORNAMENTS[shown].panelShadow||0;if(ps&&panelShadow.userData.k!==shown){fitPanelShadow(shown);panelShadow.userData.k=shown;}
   panelShadowMaterial.opacity+=(ps*assembled-panelShadowMaterial.opacity)*e;panelShadow.visible=panelShadowMaterial.opacity>.003;}
 groutW+=((ORNAMENTS[shown].grout?1:0)-groutW)*e;groutMaterial.opacity=groutW*assembled;grout.visible=groutMaterial.opacity>.003;
+bedW+=((ORNAMENTS[shown].bed?1:0)-bedW)*e;bedMaterial.opacity=bedW*assembled;bed.visible=bedMaterial.opacity>.003;
 
 const resting=time<1.9;
 particles.forEach((p,i)=>{
