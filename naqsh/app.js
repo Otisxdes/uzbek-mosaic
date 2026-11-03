@@ -33,7 +33,7 @@ const ORNAMENTS=[
   {file:'tiles-4.json?v=poster-1',name:'Lattice',scale:1.77,tile:1,sky:'#70c1de',grout:true,
    recolor:{'22,38,140':[6,30,124],'16,154,192':[8,150,189],'246,232,214':[244,231,215]},
    look:{roughness:.62,clearcoat:0,env:.35,jitter:.07,shadow:'#2a4e66',shadowOpacity:.22}},
-  {file:'tiles-3.json?v=poster-9',name:'Girih',scale:1.142,tile:.97,sky:'#cfbfae',bed:'#ddbe9b',
+  {file:'tiles-3.json?v=poster-10',name:'Girih',scale:1.142,tile:.97,sky:'#cfbfae',bed:'#ddbe9b',
    recolor:{},
    look:{roughness:.3,clearcoat:.55,env:.95,jitter:.035,shadow:'#4a2a14',shadowOpacity:.5}},
 ];
